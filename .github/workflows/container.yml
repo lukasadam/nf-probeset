@@ -53,19 +53,16 @@ jobs:
             ${{ env.IMAGE_NAME }}:latest
           labels: ${{ steps.meta.outputs.labels }}
 
-      - name: Install Apptainer
+      - name: Summarize published image
+        if: github.event_name != 'pull_request'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y apptainer
-
-      - name: Build Singularity image
-        run: |
-          mkdir -p dist
-          sudo apptainer build dist/nf-probeset-${IMAGE_TAG}.sif docker-daemon://${IMAGE_NAME}:${IMAGE_TAG}
-
-      - name: Upload Singularity artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: nf-probeset-singularity
-          path: dist/*.sif
-          if-no-files-found: error
+          {
+            echo "## Published container"
+            echo
+            echo "- \\`${IMAGE_NAME}:${IMAGE_TAG}\\`"
+            echo "- \\`${IMAGE_NAME}:latest\\`"
+            echo
+            echo "To create a Singularity/Apptainer image later, run:"
+            echo
+            echo "\\`apptainer pull docker://${IMAGE_NAME}:latest\\`"
+          } >> "$GITHUB_STEP_SUMMARY"

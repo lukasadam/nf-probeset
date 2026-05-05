@@ -23,6 +23,22 @@ nextflow run main.nf --input path/to/data.h5ad
 
 Results are written to `results/` by default.
 
+## Container Usage
+
+The GitHub Actions workflow publishes a Docker image to GHCR. It does not build a `.sif` artifact in CI.
+
+If you need a Singularity/Apptainer image, pull it from GHCR on a machine that has Apptainer installed:
+
+```bash
+apptainer pull docker://ghcr.io/lukasadam/nf-probeset:latest
+```
+
+You can also point Nextflow at the published container image:
+
+```bash
+nextflow run main.nf -profile singularity --container docker://ghcr.io/lukasadam/nf-probeset:latest
+```
+
 ## Useful Parameters
 
 - `--dataset`
