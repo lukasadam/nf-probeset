@@ -1,0 +1,16 @@
+.venv/
+__pycache__/
+*.py[cod]
+
+.history
+.nextflow/
+.nextflow.log*
+work/
+results/
+
+dist/
+*.sif
+*.sqsh
+
+.DS_Store
+
