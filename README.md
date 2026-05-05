@@ -21,6 +21,20 @@ Run with an input AnnData file:
 nextflow run main.nf --input path/to/data.h5ad
 ```
 
+Prefer putting `spapros.se.ProbesetSelector(...)` kwargs in a YAML config file:
+
+```bash
+nextflow run main.nf --selector_config selector.example.yml
+```
+
+The config file is loaded and passed through to `ProbesetSelector`, overriding the wrapper defaults where needed.
+
+For quick one-off overrides, you can still pass an inline map:
+
+```bash
+nextflow run main.nf --selector_kwargs '{"n_pca_genes":250,"forest_hparams":{"n_trees":100}}'
+```
+
 Results are written to `results/` by default.
 
 ## Container Usage

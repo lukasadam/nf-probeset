@@ -1,0 +1,40 @@
+genes_key: highly_variable
+n: 20
+preselected_genes: []
+prior_genes: []
+n_pca_genes: 100
+min_mean_difference: null
+n_min_markers: 2
+celltypes: all
+marker_list: null
+n_list_markers: 2
+marker_corr_th: 0.5
+pca_penalties: []
+DE_penalties: []
+m_penalties_adata_celltypes: []
+m_penalties_list_celltypes: []
+pca_selection_hparams: {}
+DE_selection_hparams:
+  n: 3
+  per_group: true
+forest_hparams:
+  n_trees: 50
+  subsample: 1000
+  test_subsample: 3000
+forest_DE_baseline_hparams:
+  max_step: 3
+  min_outlier_dif: 0.02
+  min_score: 0.9
+  n_DE: 1
+  n_stds: 1.0
+  n_terminal_repeats: 3
+add_forest_genes_hparams:
+  importance_th: 0
+  n_max_per_it: 5
+  performance_th: 0.02
+marker_selection_hparams:
+  penalty_threshold: 1
+verbosity: 2
+seed: 0
+save_dir: null
+n_jobs: -1

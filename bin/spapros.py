@@ -1,4 +1,5 @@
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -9,6 +10,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import scanpy as sc
+import yaml
 
 SCRIPT_DIR = str(Path(__file__).resolve().parent)
 if SCRIPT_DIR in sys.path:
@@ -94,6 +96,22 @@ def parse_args() -> argparse.Namespace:
 		help="Optional directory passed to SPAProS for intermediate selector outputs.",
 	)
 	parser.add_argument(
+		"--selector-config",
+		type=Path,
+		help=(
+			"Path to a YAML or JSON file containing kwargs for "
+			"spapros.se.ProbesetSelector."
+		),
+	)
+	parser.add_argument(
+		"--selector-kwargs",
+		default="{}",
+		help=(
+			"JSON object merged into spapros.se.ProbesetSelector kwargs. "
+			"Values here override the wrapper defaults."
+		),
+	)
+	parser.add_argument(
 		"--output-dir",
 		type=Path,
 		default=Path("."),
@@ -106,15 +124,45 @@ def parse_args() -> argparse.Namespace:
 	)
 	parser.add_argument(
 		"--dotplot-output",
-		default="dotplot.png",
+		default="dotplot.pdf",
 		help="Output filename for the masked dotplot.",
 	)
 	parser.add_argument(
-		"--gene-overlap-output",
-		default="gene_overlap.png",
-		help="Output filename for the gene overlap plot.",
+		"--evaluation-summary-output",
+		default="evaluation_summary.csv",
+		help="Output filename for the evaluation summary CSV.",
+	)
+	parser.add_argument(
+		"--evaluation-summary-plot",
+		default="evaluation_summary.pdf",
+		help="Output filename for the evaluation summary plot.",
 	)
 	return parser.parse_args()
+
+
+def parse_selector_kwargs(raw_value: str) -> dict:
+	try:
+		selector_kwargs = json.loads(raw_value)
+	except json.JSONDecodeError as exc:
+		raise ValueError("--selector-kwargs must be valid JSON.") from exc
+	if not isinstance(selector_kwargs, dict):
+		raise ValueError("--selector-kwargs must decode to a JSON object.")
+	return selector_kwargs
+
+
+def load_selector_config(config_path: Path | None) -> dict:
+	if config_path is None:
+		return {}
+	with config_path.open("r", encoding="utf-8") as handle:
+		if config_path.suffix.lower() == ".json":
+			selector_kwargs = json.load(handle)
+		else:
+			selector_kwargs = yaml.safe_load(handle)
+	if selector_kwargs is None:
+		return {}
+	if not isinstance(selector_kwargs, dict):
+		raise ValueError("--selector-config must contain a mapping/object.")
+	return selector_kwargs
 
 
 def load_pbmc3k_annotated():
@@ -177,17 +225,23 @@ def main() -> None:
 		)
 
 	save_dir = str(args.save_dir) if args.save_dir is not None else None
-	selector = sp.se.ProbesetSelector(
-		adata,
-		n=args.probeset_size,
-		celltype_key=args.celltype_target_key,
-		verbosity=args.selector_verbosity,
-		save_dir=save_dir,
-	)
+	selector_kwargs = {
+		"n": args.probeset_size,
+		"celltype_key": args.celltype_target_key,
+		"verbosity": args.selector_verbosity,
+		"save_dir": save_dir,
+	}
+	selector_kwargs.update(load_selector_config(args.selector_config))
+	selector_kwargs.update(parse_selector_kwargs(args.selector_kwargs))
+
+	# Run probeset selection
+	selector = sp.se.ProbesetSelector(adata, **selector_kwargs)
 	selector.select_probeset()
 
+	# Save selected probeset to CSV
 	selector.probeset.to_csv(output_dir / args.probeset_output, index=False)
 
+	# Generate and save masked dotplot
 	sp.pl.masked_dotplot(
 		adata,
 		selector,
@@ -195,10 +249,26 @@ def main() -> None:
 		save=str(output_dir / args.dotplot_output),
 	)
 
-	selector.plot_gene_overlap()
-	plt.savefig(output_dir / args.gene_overlap_output, bbox_inches="tight")
-	plt.close("all")
+	# Infer reference probesets
+	reference_sets = sp.se.select_reference_probesets(adata, n=args.probeset_size)
 
+	# Evaluate the selected probeset against the inferred references
+	evaluator = sp.ev.ProbesetEvaluator(adata, verbosity=2, results_dir=None)
+
+	# Get the selected probeset genes and evaluate against references (DE, PCA, random)
+	probeset = list(selector.probeset.index[selector.probeset.selection])
+	evaluator.evaluate_probeset(probeset, set_id="nf-probeset")
+
+	# Evaluate reference sets
+	for set_id, df in reference_sets.items():
+		gene_set = df[df["selection"]].index.to_list()
+		evaluator.evaluate_probeset(gene_set, set_id=set_id)
+	
+	# Save evaluation summary
+	evaluator.summary_results.to_csv(output_dir / args.evaluation_summary_output, index=False)
+
+	# Generate evaluation summary plot
+	evaluator.plot_summary(save=output_dir / args.evaluation_summary_plot)
 
 if __name__ == "__main__":
 	main()
